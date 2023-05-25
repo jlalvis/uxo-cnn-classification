@@ -1,0 +1,9 @@
+**/__pycache__/
+
+/notebooks/cnn_parameters/
+/notebooks/results/
+# temporary symlink:
+/notebooks/uxo_cnn_classification
+/notebooks/.ipynb_checkpoints
+/notebooks/cells*
+
