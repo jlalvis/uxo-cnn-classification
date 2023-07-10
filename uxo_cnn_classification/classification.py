@@ -157,7 +157,7 @@ def clean_background(classified_classes, classified_probs, threshold=0.2):
     class_not_bg = []
     for i in range(nlines):
         not_bg = np.logical_and(classified_classes[i] != 0, classified_probs[i][0,:,:] < threshold)
-        class_not_bg.append((classified_classes[i]*not_bg.astype(int)).astype(int))
+        class_not_bg.append((classified_classes[i]*not_bg.astype(int)))
     
     return class_not_bg
 
@@ -192,29 +192,31 @@ def get_diglist(x_cell, y_cell, prob_cell, class_dict, x0, safety_threshold):
     results['obj_class'] = results.iloc[:,2:2+n_class].idxmax(axis=1)
     # replace clutter class with next highest uxo in case clutter probability is below threshold:
     ordprob = prob_cell.argsort(axis=1)
-    clutter_ilist = [n_class-2, n_class-1]
-    # get likeliest uxo class after clutter classes:
-    clutter_last = np.isin(ordprob[:,-1],clutter_ilist)
-    clutter_nextlast = np.isin(ordprob[:,-2],clutter_ilist)
     probmax = prob_cell[np.arange(len(prob_cell)),ordprob[:,-1]]
-    clutter_last_below = probmax < safety_threshold
-    clutter_correction = np.where(
-        clutter_last,np.where(
-            clutter_last_below,np.where(
-                clutter_nextlast,ordprob[:,-3],ordprob[:,-2]),
-            ordprob[:,-1]
-        ),ordprob[:,-1]
-    )
+    clutter_ilist = [i for i in class_dict if 'clutter' in class_dict[i]]
+    # get likeliest uxo class after clutter classes:
+    clutter_tab = np.zeros((ordprob.shape[0],len(clutter_ilist)), dtype=bool)
+    sum_prob_last = prob_cell[np.arange(len(prob_cell)),ordprob[:,-1]]
+    clutter_last = np.isin(ordprob[:,-1],clutter_ilist)
+    clutter_tab[:,0] = clutter_last & (sum_prob_last<safety_threshold)
+    for i in range(len(clutter_ilist)-1):
+        sum_prob_last += prob_cell[np.arange(len(prob_cell)),ordprob[:,-i-2]]
+        clutter_last = clutter_last & np.isin(ordprob[:,-i-2],clutter_ilist)
+        clutter_tab[:,i+1] = clutter_last & (sum_prob_last<safety_threshold)
+    clutter_correction = np.copy(ordprob[:,-1])
+    sum_clutter_tab = np.sum(clutter_tab, axis=1)
+    for i in range(1,len(clutter_ilist)):
+        clutter_correction[sum_clutter_tab==i] = ordprob[sum_clutter_tab==i,-i-1]
     # special case when next object is "not TOI":
     clutter_correction[clutter_correction == 0] = ordprob[clutter_correction == 0,-1]
     obj_correction = np.vectorize(class_dict.get)(clutter_correction)
     results['obj_corr'] = obj_correction
     probmax_corr = prob_cell[np.arange(len(prob_cell)),clutter_correction]
     results['probmax_corr'] = probmax_corr
-    results['probmax_noc'] = np.where((results['obj_corr']=='clutter0')|(results['obj_corr']=='clutter1'),0.0,results['probmax_corr'])
+    results['probmax_noc'] = np.where(np.isin(clutter_correction, clutter_ilist),0.0,results['probmax_corr'])
     results.sort_values('probmax_noc',ascending=False,inplace=True)
-    num_clutter = sum([1 if 'clutter' in ob else 0 for ob in results['obj_corr']])
-    results.iloc[-num_clutter:] = results.iloc[-num_clutter:].sort_values('probmax_corr')
+    #num_clutter = sum([1 if 'clutter' in ob else 0 for ob in results['obj_corr']])
+    #results.iloc[-num_clutter:] = results.iloc[-num_clutter:].sort_values('probmax_corr')
     diglist = pd.DataFrame()
     #diglist['Rank'] = np.arange(len(results))+1
     diglist['Easting'] = results['Easting']

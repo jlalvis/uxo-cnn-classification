@@ -6,4 +6,5 @@
 /notebooks/uxo_cnn_classification
 /notebooks/.ipynb_checkpoints
 /notebooks/cells*
-
+/notebooks/patches
+/notebooks/get-field-data-patch.ipynb
