@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional
+from torch.utils.data import Dataset, DataLoader
 import time
 #import uxo_utils
 
@@ -51,7 +52,7 @@ def accuracy(S, labels):
     correct = (predicted == labels).sum().item()
     return correct/total
 
-def train_net(survey_parameters, class_dict, X_train, C_train, X_test, C_test, times, rseed, nepochs, logfile):
+def train_net(survey_parameters, class_dict, dataloader_train, dataloader_test, times, rseed, nepochs, logfile):
     #sensorinfo = uxo_utils.load_sensor_info(survey_parameters.sensor_type) # if you want to use uxo_utils
     #ntx = len(sensorinfo.transmitters)
     #nrx = len(sensorinfo.receivers)//3 # number of receiver cubes
@@ -86,14 +87,19 @@ def train_net(survey_parameters, class_dict, X_train, C_train, X_test, C_test, t
     net = ConvNet(layer_geometries3d, layer_geometries2d, ncycles, nrx, ntimes, n_class)
 
     # pass some data through the network (before training):
+    X_test, C_test = next(iter(dataloader_test)).values()
+    # Send model and test and validation datasets to gpu when it is available
+    net.to(device)
+    X_test = X_test.to(device)
+    C_test = C_test.to(device)
     with torch.no_grad():
-        out, out_probs = net(X_train[:100])
+        out, out_probs = net(X_test)
 
     loss_func = FocalLoss(gamma=2.,reduction='mean')
     #loss_func = nn.CrossEntropyLoss()
 
     def misfit(C, C_true):
-        return loss_func(C, C_true)
+        return loss_func(C, C_true.long())
         #return ops.sigmoid_focal_loss(C, C_true.float(),gamma=2.,alpha=0.25,reduction='mean')
 
     n_parout = sum(p.numel() for p in net.parameters() if p.requires_grad)
@@ -103,17 +109,17 @@ def train_net(survey_parameters, class_dict, X_train, C_train, X_test, C_test, t
 
     print('Total number of parameters', n_parout)
     print('Total number of parameters', n_parout, file=df)
-    print('Total number of training data', C_train.shape[0])
-    print('Total number of training data', C_train.shape[0], file=df)
+    print('Total number of training data', len(dataloader_train.dataset))
+    print('Total number of training data', len(dataloader_train.dataset), file=df)
 
-    loss = misfit(out, C_train[:100])
-    print('Initial loss = ', loss.detach().numpy())
-    print('Initial loss = ', loss.detach().numpy(), file=df)    
+    loss = misfit(out, C_test)
+    print('Initial loss = ', loss.cpu().detach().numpy())
+    print('Initial loss = ', loss.cpu().detach().numpy(), file=df)    
     print(f'Check:log({n_class}) = ', np.log(n_class))
     print(f'Check:log({n_class}) = ', np.log(n_class), file=df)
 
-    print(f"\nInitial accuracy: {accuracy(out_probs, C_train[:100])}")
-    print(f"\nInitial accuracy: {accuracy(out_probs, C_train[:100])}", file=df)
+    print(f"\nInitial accuracy: {accuracy(out_probs, C_test)}")
+    print(f"\nInitial accuracy: {accuracy(out_probs, C_test)}", file=df)
     print(f"Check random    : {1/n_class}")
     print(f"Check random    : {1/n_class}", file=df)
 
@@ -128,13 +134,7 @@ def train_net(survey_parameters, class_dict, X_train, C_train, X_test, C_test, t
     #running_accuracy_train = []
     running_accuracy_test = []
 
-    # Send model and test and validation datasets to gpu when it is available
-    net.to(device)
-
-    X_test = X_test.to(device)
-    C_test = C_test.to(device)
-
-    batch_size = 32
+    #batch_size = 32
 
     tic = time.perf_counter()
     for epoch in range(nepochs):  # loop over the dataset multiple times
@@ -144,45 +144,37 @@ def train_net(survey_parameters, class_dict, X_train, C_train, X_test, C_test, t
         loss = 0.0
         ind = 0
         
-        while ind < X_train.shape[0]:  
-            optimizer.zero_grad()
+        #while ind < X_train.shape[0]:
+        for i, data in enumerate(dataloader_train):  
             # get the inputs
-            inputs = X_train[ind:ind+batch_size, :, :, :, :]
-            labels = C_train[ind:ind+batch_size]
+            inputs, labels = data.values()
             inputs = inputs.to(device)
             labels = labels.to(device)
 
+            optimizer.zero_grad()
+
             # forward 
-            x, _ = net(inputs)
-            #print(f'batch: {ind}')
+            x, probs = net(inputs)
             lossi = misfit(x, labels)
-            if ind==0:
-                loss = lossi
-            else:
-                loss += lossi
             lossi.backward()
             optimizer.step()
-            ind += batch_size
-            
-        with torch.no_grad():
-            xtest, probs_test = net(X_test)
-            loss_test = misfit(xtest, C_test)
 
-            #xtrain, probs_train = net(X_train)
-            #loss_train = misfit(xtrain, C_train)
+            loss += lossi.item()
 
-            #accuracy_train = accuracy(probs_train, C_train)
-            accuracy_test = accuracy(probs_test, C_test)
-
-            #running_loss_train.append(loss_train)
-            running_loss_test.append(loss_test)
-            #running_accuracy_train.append(accuracy_train)
-            running_accuracy_test.append(accuracy_test)
+            accuracy_train = accuracy(probs, labels)
         
-            print(f'epoch: {epoch:3d}, loss_test: {loss_test:2.3e}, accuracy_test: {accuracy_test:0.3f}') # {loss_train:2.3e} {accuracy_train:0.3f}
-            print(f'epoch: {epoch:3d}, loss_test: {loss_test:2.3e}, accuracy_test: {accuracy_test:0.3f}', file=df)
+        print(f'epoch: {epoch:3d}, loss: {loss/len(dataloader_train):2.3e}, accuracy: {accuracy_train:0.3f}') # {loss_train:2.3e} {accuracy_train:0.3f}
+        print(f'epoch: {epoch:3d}, loss: {loss:2.3e}, accuracy: {accuracy_train:0.3f}', file=df)
 
     toc = time.perf_counter()
+    with torch.no_grad():
+        inputs_test, _ = next(iter(dataloader_test)).values()
+        inputs_test = inputs_test.to(device)
+        xtest, probs_test = net(inputs_test)
+        loss_test = misfit(xtest, C_test)
+        accuracy_test = accuracy(probs_test, C_test)
+    print(f'loss_test: {loss_test/dataloader_test.batch_size:2.3e}, accuracy_test: {accuracy_test:0.3f}') # {loss_train:2.3e} {accuracy_train:0.3f}
+    print(f'loss_test: {loss_test:2.3e}, accuracy_test: {accuracy_test:0.3f}', file=df)
     print(f'Finished Training in {toc-tic:0.4f} seconds')
     print(f'Finished Training in {toc-tic:0.4f} seconds', file=df)
     df.close()
