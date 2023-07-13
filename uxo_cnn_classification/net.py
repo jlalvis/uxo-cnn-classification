@@ -59,8 +59,10 @@ class ConvNet(nn.Module):
         for i, Ki, bn, b in zip(range(len(self.netgeometry3d)), self.K3d, self.bnorms3d[1:], self.bias):
             z = functional.conv3d(X, Ki, stride=1, padding=1, bias=b)
             z = bn(z)
-            z = functional.leaky_relu(z,negative_slope=0.2)
-            z = functional.max_pool3d(z, 3, stride=1, padding=1)
+            z = functional.relu(z)
+            #z = functional.leaky_relu(z,negative_slope=0.2)
+            #z = functional.max_pool3d(z, 3, stride=1, padding=1)
+            #z = functional.dropout(z, p=0.2)
             X = z
         X = X.transpose(3,4).transpose(2,3).reshape(X.shape[0],self.netgeometry3d[-1]*self.input_depth,self.input_height,self.input_width)
         X = self.bnorms2d[0](X)
@@ -69,8 +71,10 @@ class ConvNet(nn.Module):
         for i, Ki, bn, b in zip(range(len(self.netgeometry2d)), self.K2d, self.bnorms2d[1:], self.bias):
             z = functional.conv2d(X, Ki, stride=1, padding=1, bias=b)
             z = bn(z)
-            z = functional.leaky_relu(z,negative_slope=0.2)
-            z = functional.max_pool2d(z, 3, stride=1, padding=1)
+            z = functional.relu(z)
+            #z = functional.leaky_relu(z,negative_slope=0.2)
+            #z = functional.max_pool2d(z, 3, stride=1, padding=1)
+            #z = functional.dropout(z, p=0.2)
             X = z
         X = functional.conv2d(X, self.Kout, stride=1, padding=0, bias=self.biasout) # change padding when needed!!
         S = self.bnout(X)

@@ -118,9 +118,9 @@ def train_net(survey_parameters, class_dict, X_train, C_train, X_test, C_test, t
     print(f"Check random    : {1/n_class}", file=df)
 
     import torch.optim as optim
-    optimizer = optim.SGD(
+    optimizer = optim.Adam(
         [{'params': net.Kout}, {'params': net.K3d}, {'params': net.K2d}, {'params': net.biasout}], #, {'params': bias}],
-        lr = 1e-2, momentum=0
+        lr = 1e-3,# momentum=0
         )
 
     #running_loss_train = []
@@ -139,6 +139,10 @@ def train_net(survey_parameters, class_dict, X_train, C_train, X_test, C_test, t
     tic = time.perf_counter()
     for epoch in range(nepochs):  # loop over the dataset multiple times
 
+        # get batching indices:
+        batch_inds = np.arange(len(C_train))
+        np.random.shuffle(batch_inds)
+
         # zero the parameter gradients
         g = 0.0
         loss = 0.0
@@ -147,8 +151,9 @@ def train_net(survey_parameters, class_dict, X_train, C_train, X_test, C_test, t
         while ind < X_train.shape[0]:  
             optimizer.zero_grad()
             # get the inputs
-            inputs = X_train[ind:ind+batch_size, :, :, :, :]
-            labels = C_train[ind:ind+batch_size]
+            current_inds = batch_inds[ind:ind+batch_size]
+            inputs = X_train[current_inds]
+            labels = C_train[current_inds]
             inputs = inputs.to(device)
             labels = labels.to(device)
 
