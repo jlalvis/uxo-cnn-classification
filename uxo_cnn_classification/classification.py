@@ -215,8 +215,10 @@ def get_diglist(x_cell, y_cell, prob_cell, class_dict, x0, safety_threshold):
     results['probmax_corr'] = probmax_corr
     results['probmax_noc'] = np.where(np.isin(clutter_correction, clutter_ilist),0.0,results['probmax_corr'])
     results.sort_values('probmax_noc',ascending=False,inplace=True)
-    #num_clutter = sum([1 if 'clutter' in ob else 0 for ob in results['obj_corr']])
-    #results.iloc[-num_clutter:] = results.iloc[-num_clutter:].sort_values('probmax_corr')
+    num_clutter = sum([1 if 'clutter' in ob else 0 for ob in results['obj_corr']])
+    clutter_add = results.iloc[-num_clutter:].sort_values('probmax_corr')
+    uxos_add = results.iloc[:-num_clutter]
+    results = pd.concat([uxos_add, clutter_add])
     diglist = pd.DataFrame()
     #diglist['Rank'] = np.arange(len(results))+1
     diglist['Easting'] = results['Easting']
