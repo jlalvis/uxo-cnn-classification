@@ -26,8 +26,8 @@ class ParameterRanges:
     pitch_range: np.array
     roll_range: np.array
     noise_amplitudes: np.array
-    x_range: np.array = np.r_[0, 0] # from system footprint
-    y_range: np.array = np.r_[0, 0] # from system footprint
+    x_range: np.array # from system footprint
+    y_range: np.array # from system footprint
 
 
 @dataclass
