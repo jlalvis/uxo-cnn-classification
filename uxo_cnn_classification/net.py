@@ -26,9 +26,9 @@ class ConvNet(nn.Module):
         for i in range(nlayers3d-1):
             n_in = self.netgeometry3d[i]
             n_out = self.netgeometry3d[i+1]
-            Ki = torch.Tensor(n_out, n_in, 3, 3, 3)
+            Ki = torch.Tensor(n_out, n_in, 3, 3, 5)
             #nn.init.kaiming_uniform_(Ki)
-            Ki.data = torch.randn(n_out, n_in, 3, 3, 3)  * initial_scaling
+            Ki.data = torch.randn(n_out, n_in, 3, 3, 5)  * initial_scaling
             self.K3d.append(Ki)
             self.bnorms3d.append(nn.BatchNorm3d(n_out))
         
@@ -57,7 +57,7 @@ class ConvNet(nn.Module):
         if self.bias is None:
             self.bias = [None]*len(self.K3d)
         for i, Ki, bn, b in zip(range(len(self.netgeometry3d)), self.K3d, self.bnorms3d[1:], self.bias):
-            z = functional.conv3d(X, Ki, stride=1, padding=1, bias=b)
+            z = functional.conv3d(X, Ki, stride=1, padding=[1,1,2], bias=b)
             z = bn(z)
             z = functional.relu(z)
             #z = functional.leaky_relu(z,negative_slope=0.2)
