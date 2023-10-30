@@ -23,9 +23,9 @@ from uxo_cnn_classification import (
 )
 
 # initialization random seed for training and number of epochs:
-seeds = [4750, 5293, 9254]
+seeds = [4750, 5293, 9254, 3748, 1836]
 rseed = seeds[0]
-nepochs = 30
+nepochs = 20
 
 # sequim group 2022
 class_dict = {
@@ -36,8 +36,8 @@ class_dict = {
     4: "60mm M49",
     5: "40mm L70",
     6: "clutter0",
-    7: "clutter1",
-    8: "clutter2",
+    #7: "clutter1",
+    #8: "clutter2",
 }
 survpars = SurveyParameters(
     sensor_type = 'ultratema',
@@ -58,8 +58,8 @@ bg_case = 'a'
 #     4: "60mm M49",
 #     5: "40mm L70",
 #     6: "clutter0",
-#     7: "clutter1",
-#     8: "clutter2",
+#     #7: "clutter1",
+#     #8: "clutter2",
 #     #9: "clutter3"
 # }
 # survpars = SurveyParameters(
@@ -82,7 +82,7 @@ dy = survpars.y_spacing / ntx
 nloc = int(survpars.ymax/dy)
 ncycles = int(nloc/ntx)
 
-data_directory = f"/media/jorge/T7/data_{train_case}_{bg_case}"
+data_directory = f"/media/jorge/T7/data_{train_case}{bg_case}"
 
 # training dataset is split in different files (mainly to handle memory more efficiently while simulating synthetic data)
 nfiles = 2 # here, the last file will be used as test data
@@ -163,8 +163,8 @@ cnn_pars_dir = os.path.join(os.getcwd(), 'cnn_parameters')
 if not os.path.exists(cnn_pars_dir):
     os.mkdir(cnn_pars_dir)
 
-logfile = os.path.join(cnn_pars_dir, f'trainlog_{train_case}_{rseed}')
+logfile = os.path.join(cnn_pars_dir, f'trainlog_{train_case}{bg_case}_{rseed}')
 net = train_net(survpars, class_dict, X_train, C_train, X_test[:1000], C_test[:1000], times, rseed, nepochs, logfile)
 
 # save trained parameters:
-torch.save(net.state_dict(), os.path.join(cnn_pars_dir, f'net{train_case}_{rseed}.pth'))
+torch.save(net.state_dict(), os.path.join(cnn_pars_dir, f'net{train_case}{bg_case}_{rseed}.pth'))
