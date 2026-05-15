@@ -63,8 +63,7 @@ def classify_data(survey_parameters, class_dict, local_x, local_y, data, times, 
     ntimes = len(times)
     time_scaling = 1.0*times
 
-    torch.cuda.is_available()
-    device = 'cpu'
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     in_channels = ntx*3
     layer_geometries3d = [in_channels, 16, 16, 16, 16]
@@ -72,7 +71,7 @@ def classify_data(survey_parameters, class_dict, local_x, local_y, data, times, 
 
     net = ConvNet(layer_geometries3d, layer_geometries2d, ncycles, nrx, ntimes, n_class)
 
-    net.load_state_dict(torch.load(cnn_pars_file))
+    net.load_state_dict(torch.load(cnn_pars_file, map_location=device))
 
     net.eval()
 
@@ -196,16 +195,16 @@ def get_diglist(x_cell, y_cell, prob_cell, class_dict, x0, safety_threshold):
     clutter_ilist = [i for i in class_dict if 'clutter' in class_dict[i]]
     # get likeliest uxo class after clutter classes:
     clutter_tab = np.zeros((ordprob.shape[0],len(clutter_ilist)), dtype=bool)
-    sum_prob_last = prob_cell[np.arange(len(prob_cell)),ordprob[:,-1]]
+    sum_prob_last = prob_cell[np.arange(len(prob_cell)),ordprob[:,-2]]
     clutter_last = np.isin(ordprob[:,-1],clutter_ilist)
-    clutter_tab[:,0] = clutter_last & (sum_prob_last<safety_threshold)
+    clutter_tab[:,0] = clutter_last & (sum_prob_last>safety_threshold)
     for i in range(len(clutter_ilist)-1):
         sum_prob_last += prob_cell[np.arange(len(prob_cell)),ordprob[:,-i-2]]
         clutter_last = clutter_last & np.isin(ordprob[:,-i-2],clutter_ilist)
-        clutter_tab[:,i+1] = clutter_last & (sum_prob_last<safety_threshold)
+        clutter_tab[:,i+1] = clutter_last & (sum_prob_last>safety_threshold)
     clutter_correction = np.copy(ordprob[:,-1])
     sum_clutter_tab = np.sum(clutter_tab, axis=1)
-    for i in range(1,len(clutter_ilist)):
+    for i in range(1,len(clutter_ilist)+1):
         clutter_correction[sum_clutter_tab==i] = ordprob[sum_clutter_tab==i,-i-1]
     # special case when next object is "not TOI":
     clutter_correction[clutter_correction == 0] = ordprob[clutter_correction == 0,-1]
